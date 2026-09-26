@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  name      String
+  createdAt DateTime  @default(now())
+  bookings  Booking[]
+}
+
+model Centre {
+  id        String    @id @default(uuid())
+  name      String
+  location  String
+  createdAt DateTime  @default(now())
+  tests     Test[]
+  bookings  Booking[]
+}
+
+model Test {
+  id        String    @id @default(uuid())
+  name      String
+  price     Decimal   @db.Decimal(10, 2)
+  centreId  String
+  centre    Centre    @relation(fields: [centreId], references: [id])
+  bookings  Booking[]
+
+  @@index([centreId])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  CANCELLED
+}
+
+model Booking {
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  testId        String
+  test          Test          @relation(fields: [testId], references: [id])
+  centreId      String
+  centre        Centre        @relation(fields: [centreId], references: [id])
+  appointmentAt DateTime
+  amount        Decimal       @db.Decimal(10, 2)
+  status        BookingStatus @default(PENDING)
+  payment       Payment?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([userId])
+}
+
+enum PaymentStatus {
+  SUCCESS
+  FAILED
+}
+
+model Payment {
+  id        String        @id @default(uuid())
+  bookingId String        @unique
+  booking   Booking       @relation(fields: [bookingId], references: [id])
+  amount    Decimal       @db.Decimal(10, 2)
+  status    PaymentStatus
+  reference String        @unique
+  createdAt DateTime      @default(now())
+}
+
+// Every inbound webhook call is recorded by its provider-issued eventId
+// (unique). A repeat delivery of the same eventId is detected here and
+// short-circuited before it can touch Booking/Payment state again.
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique
+  payload     Json
+  processedAt DateTime @default(now())
+}
